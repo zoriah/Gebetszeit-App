@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "GebetsApp",
+    "slug": "gebetsapp",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0b0f1f"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "supportsTV": true
+          }
+        }
+      ]
+    ],
+    "android": {
+      "package": "com.gebetsapp.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0b0f1f"
+      },
+      "permissions": [],
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

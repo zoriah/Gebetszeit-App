@@ -1,0 +1,23 @@
+node_modules/
+.expo/
+.expo-shared/
+dist/
+web-build/
+npm-debug.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+.DS_Store
+
+# Native Projekte (werden bei Bedarf per `npx expo prebuild` neu erzeugt)
+/ios
+# android/ bewusst NICHT ignoriert, da lokale.properties hier manuell
+# gepflegt wird - bei Bedarf .gradle/build Ordner separat ignorieren:
+android/.gradle/
+android/app/build/
+android/build/
+
+*.log
