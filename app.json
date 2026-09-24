@@ -17,14 +17,6 @@
           "resizeMode": "contain",
           "backgroundColor": "#0b0f1f"
         }
-      ],
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "supportsTV": true
-          }
-        }
       ]
     ],
     "android": {
@@ -33,6 +25,15 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0b0f1f"
       },
+      "intentFilters": [
+        {
+          "action": "MAIN",
+          "category": [
+            "LEANBACK_LAUNCHER",
+            "LAUNCHER"
+          ]
+        }
+      ],
       "permissions": [],
       "softwareKeyboardLayoutMode": "pan"
     },

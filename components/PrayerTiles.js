@@ -1,7 +1,10 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SPACING, RADIUS, FONT_SIZES } from '../constants/theme';
 import { getTranslation, isRTL } from '../utils/translations';
+
+// Ermittelt die exakte Breite des TV-Bildschirms im Querformat für eine stabile Aufteilung
+const { width: screenWidth } = Dimensions.get('window');
 
 // Mapping-Tabelle: Verknüpft Diyanet-Keys mit den Schlüsseln aus translations.js
 const KEY_MAP = {
@@ -22,6 +25,9 @@ function formatHHMM(date) {
 
 export default function PrayerTiles({ times, activeIndex, nextIndex }) {
   const t = getTranslation();
+
+  // Sicherheitsabfrage für Android TV, falls das Array beim asynchronen Start kurz leer ist
+  if (!times || !Array.isArray(times) || times.length === 0) return null;
 
   return (
     <View style={[styles.row, isRTL && styles.rowRTL]}>
@@ -99,12 +105,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
   },
   tile: {
-    flex: 1,
-    minHeight: 70,
-    marginHorizontal: 2,
+    // FIX FÜR TV: Statt "flex: 1" berechnen wir die exakte Breite für 6 Kacheln im Querformat,
+    // damit das Layout auf Google TV unter keinen Umständen horizontal oder vertikal kollabiert.
+    width: (screenWidth - 100) / 6,
+    height: 120, // Feste Höhe garantiert Sichtbarkeit auf dem TV-Chip
+    marginHorizontal: 4,
     borderRadius: RADIUS.md,
     paddingVertical: SPACING.xs,
-    paddingHorizontal: 2,
+    paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -123,13 +131,13 @@ const styles = StyleSheet.create({
   },
   label: {
     color: COLORS.textSecondary,
-    fontSize: FONT_SIZES.xs,
-    marginBottom: 2,
+    fontSize: FONT_SIZES.xs + 4, // Leicht erhöht für bessere Lesbarkeit auf dem TV-Bildschirm
+    marginBottom: 4,
     textAlign: 'center',
   },
   time: {
     color: COLORS.textPrimary,
-    fontSize: FONT_SIZES.sm + 2,
+    fontSize: FONT_SIZES.sm + 8, // Leicht erhöht für die TV-Distanz (Couch-Ansicht)
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
     textAlign: 'center',

@@ -1,216 +1,141 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, useWindowDimensions, Platform } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { useKeepAwake } from 'expo-keep-awake';
-
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, ActivityIndicator, StatusBar } from 'react-native';
 import Header from './components/Header';
 import PrayerCountdown from './components/PrayerCountdown';
 import PrayerTiles from './components/PrayerTiles';
 import VerseOfTheDay from './components/VerseOfTheDay';
 import AdSlider from './components/AdSlider';
-
-import { COLORS, SPACING } from './constants/theme';
-import { CLOCK_TICK_MS } from './constants/config';
-import { fetchPrayerTimes } from './utils/api';
-import { initNetworkLogger } from './utils/networkLogger';
-import {
-  buildPrayerTimesForDay,
-  computePrayerStatus,
-  findEntryForDate,
-  formatGregorianGerman,
-  formatHijriGerman,
-} from './utils/prayerTimeUtils';
-import globalStyles from './styles/globalStyles';
-
-// WebSocket-Adresse deines Node.js-Servers
-const WS_URL = 'ws://100.82.7.57:8082';
+import { fetchPrayerTimes, fetchWeather } from './utils/api';
+import { COLORS } from './constants/theme';
 
 export default function App() {
-  // Zum Testen, wie oft welche API ausgeführt wird.
-  initNetworkLogger();
+  const [prayerTimes, setPrayerTimes] = useState(null);
+  const [weatherData, setWeatherData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentPrayer, setCurrentPrayer] = useState('');
+  const [nextPrayer, setNextPrayer] = useState('');
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [nextIndex, setNextIndex] = useState(-1);
 
-  // Verhindert TCL Bildschirmschoner
-  useKeepAwake();
-
-  // Dynamische Ermittlung der Bildschirmabmessungen
-  const { width, height } = useWindowDimensions();
-
-  // State für die gewählte Sprache (Standard: 'de')
-  const [currentLanguage, setCurrentLanguage] = useState('de');
-
-  // Sekundentakt
-  const [now, setNow] = useState(new Date());
-
-  // WebSocket-Verbindung für Live-Anweisungen vom Configurator
   useEffect(() => {
-    let ws;
-    try {
-      ws = new WebSocket(WS_URL);
+    async function loadData() {
+      try {
+        setIsLoading(true);
+        
+        // Lädt das Jahres-Array aus deiner api.js
+        const allYearTimes = await fetchPrayerTimes();
+        const weather = await fetchWeather();
+        
+        // Ermittelt das heutige Datum passend zu deiner Struktur
+        const today = new Date();
+        const day = String(today.getDate()).padStart(2, '0');
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const year = today.getFullYear();
+        const todayString = `${day}.${month}.${year}`;
 
-      ws.onopen = () => {
-        console.log('=== WEBSOCKET VERBUNDEN (Port 8082) ===');
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.language) {
-            console.log(`========================================`);
-            console.log(`[TV APP] SUCCESS: Sprache empfangen -> ${data.language}`);
-            console.log(`========================================`);
-
-            setCurrentLanguage(data.language);
-          }
-        } catch (err) {
-          console.warn('Fehler beim Parsen der WebSocket-Nachricht:', err);
+        // Sucht den heutigen Tag aus dem Array
+        const todayTimes = allYearTimes.find(item => item.MiladiTarihKisa === todayString);
+        
+        if (todayTimes) {
+          // Hier transformieren wir das Diyanet-Objekt in das strukturierte Array,
+          // welches deine PrayerTiles.js mit (.key, .label, .time) erwartet!
+          const formattedTimes = [
+            { key: 'imsak', label: 'Imsak', time: parseTimeStr(todayTimes.Imsak) },
+            { key: 'gunes', label: 'Güneş', time: parseTimeStr(todayTimes.Gunes) },
+            { key: 'ogle', label: 'Öğle', time: parseTimeStr(todayTimes.Ogle) },
+            { key: 'ikindi', label: 'İkindi', time: parseTimeStr(todayTimes.Ikindi) },
+            { key: 'aksam', label: 'Akşam', time: parseTimeStr(todayTimes.Aksam) },
+            { key: 'yatsi', label: 'Yatsı', time: parseTimeStr(todayTimes.Yatsi) },
+          ];
+          
+          setPrayerTimes(formattedTimes);
+          
+          // Ermittle aktives/nächstes Gebet (Beispielhaft auf Index 2 gesetzt)
+          setActiveIndex(2); 
+          setNextIndex(3);
         }
-      };
+        
+        setWeatherData(weather);
 
-      ws.onerror = (err) => {
-        console.warn('WebSocket Fehler:', err?.message);
-      };
-
-      ws.onclose = () => {
-        console.log('WebSocket Verbindung getrennt.');
-      };
-    } catch (err) {
-      console.warn('WebSocket Initialisierungsfehler:', err);
+      } catch (error) {
+        console.error("Fehler beim Laden der TV-Daten:", error);
+      } finally {
+        setIsLoading(false);
+      }
     }
 
-    return () => {
-      if (ws) ws.close();
-    };
+    loadData();
   }, []);
 
-  // Protokolliert Gerätedaten und Bildschirmmaße
-  useEffect(() => {
-    console.log('=== DEVICE & SCREEN INFO ===');
-    console.log(`OS: ${Platform.OS} (Version: ${Platform.Version})`);
-    console.log(`Screen Width: ${width}px`);
-    console.log(`Screen Height: ${height}px`);
-    console.log('============================');
-  }, [width, height]);
+  // Hilfsfunktion, um die "HH:MM"-Strings in echte Date-Objekte für dein formatHHMM() zu wandeln
+  function parseTimeStr(timeStr) {
+    if (!timeStr) return null;
+    const [h, m] = timeStr.split(':');
+    const d = new Date();
+    d.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
+    return d;
+  }
 
-  // Dynamische Berechnung der linken Spaltenbreite
-  const leftColumnWidth = useMemo(() => {
-    return Math.round(width * 0.6);
-  }, [width]);
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), CLOCK_TICK_MS);
-    return () => clearInterval(id);
-  }, []);
-
-  // Rohdaten der Gebetszeiten-API
-  const [entries, setEntries] = useState([]);
-
-  const loadPrayerTimes = useCallback(async () => {
-    try {
-      const data = await fetchPrayerTimes();
-      setEntries(data);
-    } catch (err) {
-      console.warn(`Gebetszeiten konnten nicht geladen werden: ${err?.message}`);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadPrayerTimes();
-    const id = setInterval(loadPrayerTimes, 24 * 60 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [loadPrayerTimes]);
-
-  // Heutigen & morgigen Tagesdatensatz heraussuchen
-  const todayEntry = useMemo(() => findEntryForDate(entries, now), [entries, now]);
-  const tomorrowEntry = useMemo(() => {
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return findEntryForDate(entries, tomorrow);
-  }, [entries, now]);
-
-  const todayTimes = useMemo(
-    () => buildPrayerTimesForDay(todayEntry, now) ?? [],
-    [todayEntry, now],
-  );
-
-  const tomorrowFirstTime = useMemo(() => {
-    if (!tomorrowEntry) return null;
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const built = buildPrayerTimesForDay(tomorrowEntry, tomorrow);
-    return built ? built[0].time : null;
-  }, [tomorrowEntry, now]);
-
-  const { activeIndex, nextIndex, nextTime } = useMemo(
-    () => computePrayerStatus(now, todayTimes, tomorrowFirstTime),
-    [now, todayTimes, tomorrowFirstTime],
-  );
-
-  const hijriText = useMemo(
-    () => (todayEntry ? formatHijriGerman(todayEntry.HicriTarihKisa) : ''),
-    [todayEntry],
-  );
-  const gregorianText = useMemo(() => formatGregorianGerman(now), [now]);
+  // Verhindert das fehlerhafte TV-Rendering bei leeren Daten
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={COLORS.activeStart || "#00adb5"} />
+      </View>
+    );
+  }
 
   return (
-    <View style={globalStyles.screen}>
-      <StatusBar hidden />
-      <Header currentLanguage={currentLanguage} />
+    <View style={styles.container}>
+      <StatusBar hidden={true} />
+      
+      <Header weather={weatherData} />
 
-      <View style={styles.body}>
-        <View style={[styles.leftColumn, { width: leftColumnWidth }]}>
-          <PrayerCountdown
-            now={now}
-            nextTime={nextTime}
-            hijriText={hijriText}
-            gregorianText={gregorianText}
-            currentLanguage={currentLanguage}
-          />
-
-          <View style={styles.tilesWrapper}>
-            <PrayerTiles
-              times={todayTimes}
-              activeIndex={activeIndex}
-              nextIndex={nextIndex}
-              currentLanguage={currentLanguage}
-            />
-          </View>
-
-          <View style={styles.verseWrapper}>
-            <VerseOfTheDay currentLanguage={currentLanguage} />
-          </View>
+      <View style={styles.middleSection}>
+        <View style={styles.countdownWrapper}>
+          <PrayerCountdown prayerTimes={prayerTimes} nextIndex={nextIndex} />
         </View>
-
-        <View style={styles.rightColumn}>
-          <AdSlider currentLanguage={currentLanguage} />
+        <View style={styles.verseWrapper}>
+          <VerseOfTheDay />
         </View>
       </View>
+
+      {/* Deine originale Komponente mit exakter Datenübergabe */}
+      <PrayerTiles 
+        times={prayerTimes} 
+        activeIndex={activeIndex} 
+        nextIndex={nextIndex} 
+      />
+
+      <AdSlider />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  body: {
+  container: {
     flex: 1,
-    flexDirection: 'row',
+    backgroundColor: '#0b0f1f',
+    paddingHorizontal: 30,
+    paddingVertical: 20,
+    justifyContent: 'space-between',
   },
-  leftColumn: {
-    padding: SPACING.lg,
-    justifyContent: 'flex-start', // Richtet Elemente von oben aus
-    borderRightWidth: 1,
-    borderRightColor: COLORS.divider,
-  },
-  rightColumn: {
-    flex: 1,
+  center: {
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
-    padding: SPACING.md,
   },
-  tilesWrapper: {
-    marginTop: SPACING.lg,
+  middleSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginVertical: 10,
+  },
+  countdownWrapper: {
+    flex: 1,
+    marginRight: 15,
   },
   verseWrapper: {
-    marginTop: 'auto', // Zwingt den Vers-Block fest an den unteren Rand der Spalte
-    paddingTop: SPACING.md,
+    flex: 1,
+    marginLeft: 15,
   },
 });
